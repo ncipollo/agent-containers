@@ -27,6 +27,11 @@
 #   AGENT_CPUS    CPUs for the container VM        (default 4)
 #   AGENT_MEMORY  Memory for the container VM      (default 8g)
 #   AGENT_MOUNT   Optional host dir to bind-mount at /home/agent/work/host
+#   AGENT_TERM    TERM value passed into the container (default xterm-256color)
+#                 Host terminals like Ghostty/Kitty/WezTerm set an exotic TERM
+#                 that the container's minimal terminfo db doesn't know, which
+#                 breaks tmux ("missing or unsuitable terminal"). Override only
+#                 if you know the container image has terminfo for your value.
 set -euo pipefail
 
 REPO_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -90,7 +95,7 @@ build_run_args() {
         --volume "$VOLUME:/home/agent"
         --workdir "$WORKDIR"
         --env "CLAUDE_REMOTE_CONTROL_SESSION_NAME_PREFIX=$CONTAINER"
-        --env "TERM=${TERM:-xterm-256color}"
+        --env "TERM=${AGENT_TERM:-xterm-256color}"
     )
     if [ -n "${AGENT_MOUNT:-}" ]; then
         RUN_ARGS+=(--volume "$(cd "$AGENT_MOUNT" && pwd):$WORKDIR/host")

@@ -102,6 +102,7 @@ Environment knobs:
 | `AGENT_CPUS`   | `4`     | CPUs for the VM                                      |
 | `AGENT_MEMORY` | `8g`    | RAM for the VM (Rust builds want more than the 1g default) |
 | `AGENT_MOUNT`  | unset   | Host directory to bind-mount at `/home/agent/work/host` |
+| `AGENT_TERM`   | `xterm-256color` | `TERM` passed into the container. Leave default unless you know the image has terminfo for your value — exotic host `TERM`s (Ghostty, Kitty, WezTerm) break `tmux` inside the container with "missing or unsuitable terminal" |
 
 ## Layout
 
