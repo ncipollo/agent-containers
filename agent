@@ -13,6 +13,9 @@
 #   remote [name]        Start Claude with Remote Control in a detached
 #                        container (tmux inside). Connect from your phone via
 #                        the Claude app or claude.ai/code.
+#   remote-fg [name]     Same as remote, but runs in the foreground and blocks
+#                        until the container exits. For use under a
+#                        supervisor (launchd, systemd, etc.) that restarts it.
 #   attach               Attach to the running remote session's tmux.
 #   sh [args...]         Bash shell in the container (running or fresh).
 #   status               Show container and volume state.
@@ -126,6 +129,19 @@ case "$CMD" in
         echo "Started $CONTAINER with Remote Control."
         echo "  ./agent $NAME attach   # view the session / grab the QR code"
         echo "  ./agent $NAME stop     # shut it down"
+        ;;
+
+    remote-fg)
+        require_container_cli
+        if is_running; then
+            echo "error: $CONTAINER is already running. Use './agent $NAME attach' or './agent $NAME stop'." >&2
+            exit 1
+        fi
+        ensure_volume
+        # Remove a stopped leftover with the same name, if any.
+        container delete "$CONTAINER" >/dev/null 2>&1 || true
+        build_run_args
+        exec container run "${TTY_FLAGS[@]}" --name "$CONTAINER" "${RUN_ARGS[@]}" "$IMAGE" claude-remote "$@"
         ;;
 
     attach)

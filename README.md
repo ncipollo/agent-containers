@@ -76,6 +76,15 @@ app on your phone, tap **Code**, and pick the session, or scan the QR code from
 rather than starting a second VM, because the home volume can only be mounted
 by one container at a time.
 
+If you run Claude under your own supervisor (launchd, systemd, a restart
+loop), use `remote-fg` instead: it's identical to `remote` but stays in the
+foreground and blocks until the container exits, so the supervisor can
+restart it. `./agent rust attach` still works against it while it's running.
+
+```sh
+./agent rust remote-fg               # blocks; supervisor restarts on exit
+```
+
 Other commands:
 
 ```sh
