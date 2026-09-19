@@ -1,0 +1,187 @@
+#!/bin/bash
+# Launcher for agent containers via Apple's `container` CLI.
+#
+# Usage: ./agent <container> <command> [args...]
+#
+# Containers live under containers/<name>/ (currently: rust).
+#
+# Commands:
+#   build [--no-cache]   Build the image from containers/<name>/Dockerfile.
+#   claude [args...]     Interactive Claude Code session (foreground).
+#                        If the remote container is already running, opens a
+#                        second session inside it instead.
+#   remote [name]        Start Claude with Remote Control in a detached
+#                        container (tmux inside). Connect from your phone via
+#                        the Claude app or claude.ai/code.
+#   attach               Attach to the running remote session's tmux.
+#   sh [args...]         Bash shell in the container (running or fresh).
+#   status               Show container and volume state.
+#   stop                 Stop the detached remote container.
+#   logs                 Show the detached container's stdout.
+#   reset-volume         Delete the persistent home volume (asks first).
+#
+# Environment:
+#   AGENT_CPUS    CPUs for the container VM        (default 4)
+#   AGENT_MEMORY  Memory for the container VM      (default 8g)
+#   AGENT_MOUNT   Optional host dir to bind-mount at /home/agent/work/host
+set -euo pipefail
+
+REPO_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+
+usage() { sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; }
+
+if [ "$#" -lt 2 ]; then
+    usage
+    exit 1
+fi
+
+NAME=$1
+CMD=$2
+shift 2
+
+CONTAINER_DIR="$REPO_DIR/containers/$NAME"
+if [ ! -f "$CONTAINER_DIR/Dockerfile" ]; then
+    echo "error: no such container '$NAME' (expected $CONTAINER_DIR/Dockerfile)" >&2
+    exit 1
+fi
+
+IMAGE="agent-$NAME:latest"
+CONTAINER="agent-$NAME"
+VOLUME="agent-$NAME-home"
+CPUS="${AGENT_CPUS:-4}"
+MEMORY="${AGENT_MEMORY:-8g}"
+WORKDIR=/home/agent/work
+
+# Allocate a TTY only when we have one (lets `./agent rust claude --version`
+# work from scripts and non-interactive shells).
+if [ -t 0 ] && [ -t 1 ]; then TTY_FLAGS=(-i -t); else TTY_FLAGS=(-i); fi
+
+require_container_cli() {
+    if ! command -v container >/dev/null 2>&1; then
+        echo "error: Apple 'container' CLI not found. Install from https://github.com/apple/container/releases" >&2
+        exit 1
+    fi
+    if ! container system status >/dev/null 2>&1; then
+        echo "container system not running; starting it..."
+        container system start
+    fi
+}
+
+ensure_volume() {
+    if ! container volume inspect "$VOLUME" >/dev/null 2>&1; then
+        echo "creating persistent volume $VOLUME"
+        container volume create "$VOLUME"
+    fi
+}
+
+is_running() {
+    # `container list -q` prints only running container IDs.
+    container list -q 2>/dev/null | grep -qx "$CONTAINER"
+}
+
+# Fills RUN_ARGS with the common `container run` flags (bash 3.2 compatible).
+RUN_ARGS=()
+build_run_args() {
+    RUN_ARGS=(
+        --cpus "$CPUS" --memory "$MEMORY"
+        --volume "$VOLUME:/home/agent"
+        --workdir "$WORKDIR"
+        --env "CLAUDE_REMOTE_CONTROL_SESSION_NAME_PREFIX=$CONTAINER"
+        --env "TERM=${TERM:-xterm-256color}"
+    )
+    if [ -n "${AGENT_MOUNT:-}" ]; then
+        RUN_ARGS+=(--volume "$(cd "$AGENT_MOUNT" && pwd):$WORKDIR/host")
+    fi
+}
+
+case "$CMD" in
+    build)
+        require_container_cli
+        container build "$@" -t "$IMAGE" -f "$CONTAINER_DIR/Dockerfile" "$CONTAINER_DIR"
+        ;;
+
+    claude)
+        require_container_cli
+        if is_running; then
+            echo "$CONTAINER is running (remote mode); opening a session inside it."
+            exec container exec "${TTY_FLAGS[@]}" -u agent --workdir "$WORKDIR" "$CONTAINER" claude "$@"
+        fi
+        ensure_volume
+        build_run_args
+        exec container run "${TTY_FLAGS[@]}" --rm "${RUN_ARGS[@]}" "$IMAGE" claude "$@"
+        ;;
+
+    remote)
+        require_container_cli
+        if is_running; then
+            echo "error: $CONTAINER is already running. Use './agent $NAME attach' or './agent $NAME stop'." >&2
+            exit 1
+        fi
+        ensure_volume
+        # Remove a stopped leftover with the same name, if any.
+        container delete "$CONTAINER" >/dev/null 2>&1 || true
+        build_run_args
+        container run -d --name "$CONTAINER" "${RUN_ARGS[@]}" "$IMAGE" claude-remote "$@"
+        echo
+        echo "Started $CONTAINER with Remote Control."
+        echo "  ./agent $NAME attach   # view the session / grab the QR code"
+        echo "  ./agent $NAME stop     # shut it down"
+        ;;
+
+    attach)
+        require_container_cli
+        if ! is_running; then
+            echo "error: $CONTAINER is not running. Start it with './agent $NAME remote'." >&2
+            exit 1
+        fi
+        exec container exec "${TTY_FLAGS[@]}" -u agent "$CONTAINER" tmux attach -t claude
+        ;;
+
+    sh)
+        require_container_cli
+        if is_running; then
+            exec container exec "${TTY_FLAGS[@]}" -u agent --workdir "$WORKDIR" "$CONTAINER" bash "$@"
+        fi
+        ensure_volume
+        build_run_args
+        exec container run "${TTY_FLAGS[@]}" --rm "${RUN_ARGS[@]}" "$IMAGE" bash "$@"
+        ;;
+
+    status)
+        require_container_cli
+        echo "== containers =="; container list -a
+        echo; echo "== volumes =="; container volume list
+        echo; echo "== images =="; container image list | grep -E "NAME|agent-" || true
+        ;;
+
+    stop)
+        require_container_cli
+        container stop "$CONTAINER" && container delete "$CONTAINER"
+        ;;
+
+    logs)
+        require_container_cli
+        container logs "$@" "$CONTAINER"
+        ;;
+
+    reset-volume)
+        require_container_cli
+        if is_running; then
+            echo "error: stop $CONTAINER first." >&2
+            exit 1
+        fi
+        read -r -p "Delete volume $VOLUME and ALL its data (claude login, gh login, work/)? [y/N] " ans
+        if [ "$ans" = "y" ] || [ "$ans" = "Y" ]; then
+            container volume delete "$VOLUME"
+        else
+            echo "aborted."
+        fi
+        ;;
+
+    *)
+        echo "error: unknown command '$CMD'" >&2
+        echo
+        usage
+        exit 1
+        ;;
+esac
