@@ -64,6 +64,10 @@ WORKDIR=/home/agent/work
 # work from scripts and non-interactive shells).
 if [ -t 0 ] && [ -t 1 ]; then TTY_FLAGS=(-i -t); else TTY_FLAGS=(-i); fi
 
+# Launchers with a minimal PATH (launchd agents, cron, summoning-circle's
+# `sh -c`) won't have Homebrew's prefix, where `container` actually lives.
+export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"
+
 require_container_cli() {
     if ! command -v container >/dev/null 2>&1; then
         echo "error: Apple 'container' CLI not found. Install from https://github.com/apple/container/releases" >&2
