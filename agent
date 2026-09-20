@@ -16,6 +16,7 @@
 #   remote-fg [name]     Same as remote, but runs in the foreground and blocks
 #                        until the container exits. For use under a
 #                        supervisor (launchd, systemd, etc.) that restarts it.
+#                        Stops/replaces a leftover orphaned instance on start.
 #   attach               Attach to the running remote session's tmux.
 #   sh [args...]         Bash shell in the container (running or fresh).
 #   status               Show container and volume state.
@@ -142,12 +143,16 @@ case "$CMD" in
 
     remote-fg)
         require_container_cli
+        # A supervisor that kills this script (especially with an
+        # uncatchable signal) can't stop the container on the way out,
+        # leaving it running orphaned. Since remote-fg claims exclusive
+        # ownership of $CONTAINER, clear out any leftover from a previous
+        # run before starting fresh, instead of refusing to start.
         if is_running; then
-            echo "error: $CONTAINER is already running. Use './agent $NAME attach' or './agent $NAME stop'." >&2
-            exit 1
+            echo "stopping orphaned $CONTAINER from a previous run..."
+            container stop "$CONTAINER" >/dev/null 2>&1 || true
         fi
         ensure_volume
-        # Remove a stopped leftover with the same name, if any.
         container delete "$CONTAINER" >/dev/null 2>&1 || true
         build_run_args
         exec container run "${TTY_FLAGS[@]}" --name "$CONTAINER" "${RUN_ARGS[@]}" "$IMAGE" claude-remote "$@"

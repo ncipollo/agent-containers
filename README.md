@@ -80,6 +80,9 @@ If you run Claude under your own supervisor (launchd, systemd, a restart
 loop), use `remote-fg` instead: it's identical to `remote` but stays in the
 foreground and blocks until the container exits, so the supervisor can
 restart it. `./agent rust attach` still works against it while it's running.
+If the supervisor kills the script (e.g. with a signal it can't forward to
+the container), `remote-fg` stops and clears any orphaned leftover container
+the next time it starts, rather than refusing to start.
 
 ```sh
 ./agent rust remote-fg               # blocks; supervisor restarts on exit
