@@ -22,6 +22,9 @@
 #   status               Show container and volume state.
 #   stop                 Stop the detached remote container.
 #   logs                 Show the detached container's stdout.
+#   clean                Reclaim host disk space by punching freed blocks out
+#                        of the running container's rootfs and home volume
+#                        (requires container CLI >= 1.5.0).
 #   reset-volume         Delete the persistent home volume (asks first).
 #
 # Environment:
@@ -192,6 +195,16 @@ case "$CMD" in
     logs)
         require_container_cli
         container logs "$@" "$CONTAINER"
+        ;;
+
+    clean)
+        require_container_cli
+        if ! is_running; then
+            echo "error: $CONTAINER is not running. 'container clean' only works on a running container." >&2
+            echo "Start it with './agent $NAME claude' or './agent $NAME remote' first." >&2
+            exit 1
+        fi
+        container clean "$CONTAINER"
         ;;
 
     reset-volume)

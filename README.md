@@ -95,8 +95,17 @@ Other commands:
 ./agent rust status          # containers, volumes, images
 ./agent rust logs            # stdout of the detached container
 ./agent rust build --no-cache
+./agent rust clean           # reclaim host disk space freed inside the container
 ./agent rust reset-volume    # wipe the home volume (logins, work/, caches)
 ```
+
+`clean` wraps `container clean`: the container's rootfs and the home volume are
+sparse disk images on the host, and deleting files inside the guest (e.g.
+`cargo clean`) doesn't shrink them on its own — the freed blocks are never
+returned. `clean` punches them out while the container keeps running, so a Mac
+Finder/`du` check of the volume's backing file actually drops. Requires
+container CLI >= 1.5.0 and a running container (`./agent rust claude` or
+`./agent rust remote` first).
 
 Environment knobs:
 
