@@ -199,6 +199,13 @@ case "$CMD" in
 
     clean)
         require_container_cli
+        cli_version=$(container --version | sed -n 's/.*version \([0-9][0-9.]*\).*/\1/p')
+        if [ "$(printf '%s\n1.5.0\n' "$cli_version" | sort -V | head -n1)" != "1.5.0" ]; then
+            echo "error: 'clean' needs container CLI >= 1.5.0 (found ${cli_version:-unknown})." >&2
+            echo "Upgrade from https://github.com/apple/container/releases, then run" >&2
+            echo "'container system stop && container system start' and restart $CONTAINER." >&2
+            exit 1
+        fi
         if ! is_running; then
             echo "error: $CONTAINER is not running. 'container clean' only works on a running container." >&2
             echo "Start it with './agent $NAME claude' or './agent $NAME remote' first." >&2
