@@ -10,10 +10,13 @@
 #   claude [args...]     Interactive Claude Code session (foreground).
 #                        If the remote container is already running, opens a
 #                        second session inside it instead.
-#   remote [name]        Start Claude with Remote Control in a detached
+#   remote [count] [name]  Start Claude with Remote Control in a detached
 #                        container (tmux inside). Connect from your phone via
-#                        the Claude app or claude.ai/code.
-#   remote-fg [name]     Same as remote, but runs in the foreground and blocks
+#                        the Claude app or claude.ai/code. An optional leading
+#                        integer starts that many parallel sessions (one tmux
+#                        window each; names get a numeric suffix).
+#   remote-fg [count] [name]
+#                        Same as remote, but runs in the foreground and blocks
 #                        until the container exits. For use under a
 #                        supervisor (launchd, systemd, etc.) that restarts it.
 #                        Stops/replaces a leftover orphaned instance on start.

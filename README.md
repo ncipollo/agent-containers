@@ -64,6 +64,8 @@ Claude with Remote Control, so you can drive it from your phone:
 ```sh
 ./agent rust remote                 # auto-named session, e.g. agent-rust-brave-otter
 ./agent rust remote "Fix the parser"   # named session
+./agent rust remote 3               # three parallel sessions
+./agent rust remote 3 "Fix the parser"   # named "Fix the parser 1".."3"
 ./agent rust attach                 # see the terminal, press space for the QR code
 ./agent rust stop                   # shut it down
 ```
@@ -71,7 +73,7 @@ Claude with Remote Control, so you can drive it from your phone:
 `remote` starts a detached container running `claude --remote-control` inside
 tmux, so it keeps running after you close SSH to the Mac mini. Open the Claude
 app on your phone, tap **Code**, and pick the session, or scan the QR code from
-`attach`. Detach from tmux with `Ctrl-b d`. While the remote container is up,
+`attach`. Each parallel session gets its own tmux window (`Ctrl-b n`/`Ctrl-b p` to switch). Detach from tmux with `Ctrl-b d`. While the remote container is up,
 `./agent rust claude` and `./agent rust sh` open extra sessions inside it
 rather than starting a second VM, because the home volume can only be mounted
 by one container at a time.
@@ -86,6 +88,7 @@ the next time it starts, rather than refusing to start.
 
 ```sh
 ./agent rust remote-fg               # blocks; supervisor restarts on exit
+./agent rust remote-fg 2            # two parallel sessions
 ```
 
 Other commands:
