@@ -43,7 +43,7 @@ for i in $(seq 1 "$COUNT"); do
         # Keep panes after claude exits so failures (e.g. not logged in) are readable.
         tmux set-option -t "$SESSION" remain-on-exit on
     else
-        tmux new-window -t "$SESSION" "$cmd_str"
+        tmux new-window -t "$SESSION:" "$cmd_str"
     fi
     echo "Running: ${cmd[*]}"
 done
